@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Attendance Scanner</title>
+    
+    <!-- Include html5-qrcode library from CDN -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        /* Main container card */
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* Page title */
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2em;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+
+        /* Camera container with scanning animation */
+        #reader {
+            width: 100%;
+            margin: 20px 0;
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            background: #f0f0f0;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Scanning animation border */
+        .scanning-border {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            border: 3px solid transparent;
+            border-radius: 12px;
+            animation: scanPulse 2s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanPulse {
+            0%, 100% {
+                border-color: #667eea;
+                box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
+            }
+            50% {
+                border-color: #764ba2;
+                box-shadow: 0 0 0 10px rgba(118, 75, 162, 0);
+            }
+        }
+
+        /* Status message boxes */
+        .status-box {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1.1em;
+            display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .status-box.show {
+            display: block;
+        }
+
+        /* Success box (green) */
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+            border: 2px solid #c3e6cb;
+        }
+
+        /* Error box (red) */
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 2px solid #f5c6cb;
+        }
+
+        /* Loading indicator */
+        .loading {
+            color: #667eea;
+            font-size: 0.9em;
+            margin-top: 15px;
+        }
+
+        /* Instructions */
+        .instructions {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #666;
+            font-size: 0.9em;
+            line-height: 1.6;
+        }
+
+        .instructions strong {
+            color: #333;
+        }
+
+        /* Classroom selector */
+        .classroom-selector {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+
+        .classroom-selector label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 0.95em;
+        }
+
+        .classroom-selector select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1em;
+            background: white;
+            color: #333;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+
+        .classroom-selector select:hover {
+            border-color: #667eea;
+        }
+
+        .classroom-selector select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .classroom-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #e7f3ff;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #0066cc;
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            #reader {
+                min-height: 250px;
+            }
+        }
+
+        /* Camera permission message */
+        .camera-permission {
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main container card -->
+    <div class="container">
+        <!-- Page title -->
+        <h1>AI Attendance Scanner</h1>
+        <p class="subtitle">Scan your Student ID QR code to mark attendance</p>
+
+        <!-- Camera container -->
+        <div id="reader">
+            <!-- Scanning animation border -->
+            <div class="scanning-border"></div>
+            <!-- Camera will be inserted here by html5-qrcode library -->
+            <div class="camera-permission">Requesting camera access...</div>
+        </div>
+
+        <!-- Status message boxes (hidden by default) -->
+        <div id="statusBox" class="status-box">
+            <!-- Status message will be inserted here -->
+        </div>
+
+        <!-- Loading indicator (hidden by default) -->
+        <div id="loading" class="loading" style="display: none;">
+            Processing...
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <strong>How to use:</strong><br>
+            1. Allow camera access when prompted<br>
+            2. Scan your Student ID QR code<br>
+            3. The system will automatically detect your active class<br>
+            4. Wait for confirmation message
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SCAN_API_URL = "/scan_qr"; // Flask backend route
+
+        // Get DOM elements
+        const readerElement = document.getElementById('reader');
+        const statusBox = document.getElementById('statusBox');
+        const loadingIndicator = document.getElementById('loading');
+
+        // Initialize QR code scanner
+        let html5QrcodeScanner = null;
+
+        /**
+         * Initialize the QR code scanner
+         * This function sets up the camera and starts scanning
+         */
+        function initScanner() {
+            // Create new Html5Qrcode instance
+            html5QrcodeScanner = new Html5Qrcode("reader");
+
+            // Configuration for scanning
+            const config = {
+                fps: 10, // Frames per second to scan
+                qrbox: { width: 250, height: 250 }, // Scanning box size
+                aspectRatio: 1.0 // Square aspect ratio
+            };
+
+            // Start scanning with camera
+            html5QrcodeScanner.start(
+                { facingMode: "environment" }, // Use back camera on mobile
+                config,
+                onScanSuccess, // Callback when QR code is detected
+                onScanError    // Callback for errors
+            ).then(() => {
+                // Camera started successfully
+                console.log("Camera started successfully");
+            }).catch((err) => {
+                // Handle camera start errors
+                console.error("Error starting camera:", err);
+                showError("Failed to start camera. Please check permissions.");
+            });
+        }
+
+        /**
+         * Callback function when QR code is successfully scanned
+         * @param {string} decodedText - The text decoded from QR code (student_id)
+         * @param {object} decodedResult - Full decoded result object
+         */
+        function onScanSuccess(decodedText, decodedResult) {
+            // Extract student_id from scanned QR code
+            const student_id = decodedText.trim();
+
+            console.log("QR Code scanned:", student_id);
+
+            // Stop scanning temporarily to prevent multiple scans
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.pause();
+            }
+
+            // Show loading indicator
+            loadingIndicator.style.display = "block";
+            hideStatus();
+
+            // Send POST request to Flask backend
+            sendAttendanceRequest(student_id);
+        }
+
+        /**
+         * Callback function for scanning errors (not critical)
+         * @param {string} errorMessage - Error message
+         */
+        function onScanError(errorMessage) {
+            // This is called frequently during scanning, so we don't show errors
+            // Only log for debugging
+            // console.log("Scan error:", errorMessage);
+        }
+
+
+        /**
+         * Send attendance request to Flask backend
+         * @param {string} student_id - Student ID from QR code
+         */
+        async function sendAttendanceRequest(student_id) {
+            // Log what we're sending
+            console.log("[STUDENT_PAGE] Sending attendance request:");
+            console.log("[STUDENT_PAGE]   student_id:", student_id);
+            console.log("[STUDENT_PAGE]   student_id type:", typeof student_id, "length:", student_id.length);
+
+            try {
+                // Prepare request data - only student_id needed, classroom is auto-detected
+                const requestData = {
+                    student_id: student_id
+                };
+
+                // Send POST request to Flask backend
+                const response = await fetch(SCAN_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                // Parse JSON response
+                const result = await response.json();
+
+                // Hide loading indicator
+                loadingIndicator.style.display = "none";
+
+                // Check response status
+                if (result.status === "accepted") {
+                    // Show success message (green)
+                    showSuccess("✅ Entry Accepted");
+                } else {
+                    // Show error message (red) with details if available
+                    const errorMsg = result.message || "Entry Denied";
+                    console.error("[STUDENT_PAGE] Entry denied:", errorMsg);
+                    showError(`❌ Entry Denied: ${errorMsg}`);
+                }
+
+                // Resume scanning after 3 seconds
+                setTimeout(() => {
+                    if (html5QrcodeScanner) {
+                        html5QrcodeScanner.resume();
+                    }
+                    hideStatus();
+                }, 3000);
+
+            } catch (error) {
+                // Handle network or other errors
+                console.error("Error sending request:", error);
+                loadingIndicator.style.display = "none";
+                showError("❌ Network Error. Please try again.");
+                
+                // Resume scanning after error
+                setTimeout(() => {
+                    if (html5QrcodeScanner) {
+                        html5QrcodeScanner.resume();
+                    }
+                    hideStatus();
+                }, 3000);
+            }
+        }
+
+        /**
+         * Show success message (green box)
+         * @param {string} message - Success message to display
+         */
+        function showSuccess(message) {
+            statusBox.textContent = message;
+            statusBox.className = "status-box status-success show";
+        }
+
+        /**
+         * Show error message (red box)
+         * @param {string} message - Error message to display
+         */
+        function showError(message) {
+            statusBox.textContent = message;
+            statusBox.className = "status-box status-error show";
+        }
+
+        /**
+         * Hide status message box
+         */
+        function hideStatus() {
+            statusBox.classList.remove("show");
+        }
+
+        // Initialize scanner when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check if browser supports camera
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                initScanner();
+            } else {
+                showError("Camera not supported in this browser.");
+            }
+        });
+
+        // Clean up when page is closed
+        window.addEventListener('beforeunload', function() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().catch(err => {
+                    console.error("Error stopping scanner:", err);
+                });
+            }
+        });
+    </script>
+</body>
+</html>

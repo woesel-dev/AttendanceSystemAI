@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Attendance System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Teacher Dashboard</h1>
+            <p>Live Attendance Monitoring</p>
+        </header>
+
+        <div class="dashboard-content">
+            <!-- Current Class Info Section -->
+            <div class="card class-info-card">
+                <h2>Current Class Information</h2>
+                <div id="classInfo" class="class-info">
+                    <div class="loading">Loading class information...</div>
+                </div>
+            </div>
+
+            <!-- Attendance Stats Section -->
+            <div class="card stats-card">
+                <h2>Attendance Statistics</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Students Scanned</div>
+                        <div class="stat-value" id="scannedCount">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total Enrolled</div>
+                        <div class="stat-value" id="totalEnrolled">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Attendance Rate</div>
+                        <div class="stat-value" id="attendanceRate">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Headcount Check Section -->
+            <div class="card headcount-card">
+                <h2>AI Headcount Verification</h2>
+                <p class="card-description">Upload a classroom photo to verify actual attendance vs scanned count using AI</p>
+                <div class="headcount-upload">
+                    <input type="file" id="headcountImage" accept="image/*" style="display: none;">
+                    <label for="headcountImage" class="file-upload-label">
+                        <span class="upload-icon">📷</span>
+                        Choose Classroom Photo
+                    </label>
+                    <span id="fileName" class="file-name"></span>
+                </div>
+                <button id="headcountBtn" class="btn btn-primary btn-large" disabled>
+                    <span class="btn-icon">🤖</span>
+                    Run AI Headcount
+                </button>
+                <div id="headcountResult" class="headcount-result"></div>
+                <!-- Debug Image (hidden by default, shown after headcount check) -->
+                <div id="debugImageContainer" style="display: none; margin-top: 20px;">
+                    <h3 style="margin-bottom: 10px;">Debug View - Detected Faces</h3>
+                    <img id="debug-image" src="" alt="Debug view with detected faces" style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px;">
+                </div>
+            </div>
+
+            <!-- Recent Scans Section -->
+            <div class="card recent-scans-card">
+                <h2>Recent Scans</h2>
+                <div id="recentScans" class="recent-scans-list">
+                    <div class="empty-state">No scans yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+</html>

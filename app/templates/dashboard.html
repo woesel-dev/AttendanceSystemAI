@@ -1,17 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teacher Dashboard - Attendance System</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
 </head>
+
 <body>
     <div class="container">
-        <header>
-            <h1>Teacher Dashboard</h1>
-            <p>Live Attendance Monitoring</p>
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>Teacher Dashboard</h1>
+                <p>Live Attendance Monitoring</p>
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn btn-secondary"
+                style="padding: 8px 16px; font-size: 0.9em;">Logout</a>
         </header>
+
+        <div style="text-align: center; margin: 20px 0;">
+            <a href="/student/scanner" class="btn btn-primary"
+                style="padding: 15px 30px; font-size: 1.2em; text-decoration: none; display: inline-block;">Open
+                Classroom Scanner</a>
+        </div>
 
         <div class="dashboard-content">
             <!-- Current Class Info Section -->
@@ -44,7 +56,8 @@
             <!-- AI Headcount Check Section -->
             <div class="card headcount-card">
                 <h2>AI Headcount Verification</h2>
-                <p class="card-description">Upload a classroom photo to verify actual attendance vs scanned count using AI</p>
+                <p class="card-description">Upload a classroom photo to verify actual attendance vs scanned count using
+                    AI</p>
                 <div class="headcount-upload">
                     <input type="file" id="headcountImage" accept="image/*" style="display: none;">
                     <label for="headcountImage" class="file-upload-label">
@@ -61,7 +74,8 @@
                 <!-- Debug Image (hidden by default, shown after headcount check) -->
                 <div id="debugImageContainer" style="display: none; margin-top: 20px;">
                     <h3 style="margin-bottom: 10px;">Debug View - Detected Faces</h3>
-                    <img id="debug-image" src="" alt="Debug view with detected faces" style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px;">
+                    <img id="debug-image" src="" alt="Debug view with detected faces"
+                        style="max-width: 100%; border: 2px solid #ddd; border-radius: 8px;">
                 </div>
             </div>
 
@@ -77,4 +91,5 @@
 
     <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
 </body>
+
 </html>

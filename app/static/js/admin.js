@@ -129,15 +129,8 @@ document.addEventListener('DOMContentLoaded', function() {
         for (const [classroomId, info] of Object.entries(data)) {
             html += `
                 <div class="data-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px;">
                         <h3 style="margin: 0;">${info.classroom || classroomId}</h3>
-                        <button 
-                            class="btn btn-primary" 
-                            onclick="generateQRCode('${classroomId}')"
-                            style="padding: 8px 16px; font-size: 0.9em;"
-                            title="Generate QR code for this classroom">
-                            📱 Generate QR
-                        </button>
                     </div>
                     <div class="field">
                         <span class="field-label">Classroom ID:</span>
@@ -170,16 +163,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         dataList.innerHTML = html;
     }
-
-    // Function to generate and display QR code
-    function generateQRCode(classroomId) {
-        // Open QR code in new tab
-        const qrUrl = `/admin/generate_qr/${encodeURIComponent(classroomId)}`;
-        window.open(qrUrl, '_blank');
-    }
-
-    // Make function available globally
-    window.generateQRCode = generateQRCode;
 
     // Function to load and display students
     async function loadStudents() {

@@ -1,36 +1,39 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Panel - Attendance System</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}">
 </head>
+
 <body>
     <div class="container">
-        <header>
-            <h1>Admin Panel</h1>
-            <p>Manage Subjects, Departments, Classrooms, and Students</p>
+        <header style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h1>Admin Panel</h1>
+                <p>Manage Subjects, Departments, Classrooms, and Students</p>
+            </div>
+            <a href="{{ url_for('logout') }}" class="btn btn-secondary"
+                style="padding: 8px 16px; font-size: 0.9em;">Logout</a>
         </header>
 
         <div class="form-container">
             <form id="adminForm">
                 <div class="form-group">
                     <label for="subject">Subject *</label>
-                    <input type="text" id="subject" name="subject" required 
-                           placeholder="e.g., Computer Science 101">
+                    <input type="text" id="subject" name="subject" required placeholder="e.g., Computer Science 101">
                 </div>
 
                 <div class="form-group">
                     <label for="department">Department *</label>
-                    <input type="text" id="department" name="department" required 
-                           placeholder="e.g., Computer Science">
+                    <input type="text" id="department" name="department" required placeholder="e.g., Computer Science">
                 </div>
 
                 <div class="form-group">
                     <label for="classroom">Classroom *</label>
-                    <input type="text" id="classroom" name="classroom" required 
-                           placeholder="e.g., CS101 or Room 205">
+                    <input type="text" id="classroom" name="classroom" required placeholder="e.g., CS101 or Room 205">
                 </div>
 
                 <div class="form-row">
@@ -47,8 +50,8 @@
 
                 <div class="form-group">
                     <label for="studentIds">Student IDs *</label>
-                    <textarea id="studentIds" name="studentIds" rows="6" required 
-                              placeholder="Enter student IDs, one per line&#10;Example:&#10;S001&#10;S002&#10;S003"></textarea>
+                    <textarea id="studentIds" name="studentIds" rows="6" required
+                        placeholder="Enter student IDs, one per line&#10;Example:&#10;S001&#10;S002&#10;S003"></textarea>
                     <small class="help-text">Enter one student ID per line</small>
                 </div>
 
@@ -76,4 +79,5 @@
 
     <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 </body>
+
 </html>

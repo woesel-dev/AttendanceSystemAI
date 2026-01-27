@@ -1,7 +1,7 @@
 """
 Flask routes for the attendance system.
 """
-from flask import request, jsonify, render_template, send_file
+from flask import request, jsonify, render_template, send_file, session, redirect, url_for
 from datetime import datetime
 import cv2
 import numpy as np
@@ -11,15 +11,197 @@ import io
 import qrcode
 from app.attendance_manager import attendance_manager
 from app.headcount_detector import headcount_detector
+from app.models import db, User, Student
+import random
+from datetime import timedelta
 
 
 def register_routes(app):
     """Register all routes with the Flask app."""
     
     @app.route('/')
-    def student_page():
-        """Serve the student QR attendance page."""
-        return render_template('student.html')
+    def home_page():
+        """Serve the home page (redirects to login)."""
+        return redirect(url_for('login'))
+
+    @app.route('/logout')
+    def logout():
+        """Logout user and clear session."""
+        session.clear()
+        return redirect(url_for('login'))
+    
+    @app.route('/student/profile')
+    def student_profile():
+        """Serve the student profile page."""
+        student_id = request.args.get('student_id')
+        student = None
+        if student_id:
+            # We need to access the students dictionary from attendance_manager
+            # But wait, attendance_manager.students returns a dict of data, not Student objects?
+            # Let's check get_students or similar. 
+            # attendance_manager.students is a property wrapping self.data['students']
+            # It returns a dict.
+            # Models are better if we want to work with DB objects.
+            # user instructions said "Link the Student model to User" in models.py, so we should use DB models.
+            student = Student.query.filter_by(id=student_id).first()
+        
+        return render_template('student_profile.html', student=student)
+    
+    @app.route('/student/scanner')
+    def student_scanner():
+        """Serve the QR scanner page."""
+        return render_template('scanner.html')
+
+    @app.route('/login/reset')
+    def login_reset():
+        """
+        Clear pending email from session and redirect to login.
+        """
+        session.pop('pending_email', None)
+        return redirect(url_for('login'))
+
+    @app.route('/login', methods=['GET', 'POST'])
+    def login():
+        """
+        Handle login requests.
+        GET: Render login page.
+        POST: Process email, validate domain (@smit.smu.edu.in), and generate OTP.
+        """
+        # GET request: Show login page
+        if request.method == 'GET':
+            # Clear pending email if it's a fresh load of the form, 
+            # UNLESS we explicitly want to keep it. using 'reset' param to clear.
+            if request.args.get('reset'):
+                session.pop('pending_email', None)
+            return render_template('login.html')
+
+        # POST request
+        try:
+            # Handle both JSON and Form data
+            if request.is_json:
+                data = request.get_json()
+                email = data.get('email')
+                is_api = True
+            else:
+                email = request.form.get('email')
+                is_api = False
+
+            if not email:
+                error_msg = 'Email is required'
+                if is_api: return jsonify({'error': error_msg}), 400
+                return render_template('login.html', error=error_msg)
+
+            # Domain validation
+            if not email.lower().endswith('@smit.smu.edu.in'):
+                 error_msg = 'Access restricted to @smit.smu.edu.in domain'
+                 if is_api: return jsonify({'error': error_msg}), 403
+                 return render_template('login.html', error=error_msg)
+
+            # Generate OTP
+            otp = str(random.randint(100000, 999999))
+            otp_expiry = datetime.utcnow() + timedelta(minutes=5)
+
+            # Check/Create user
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                # Create new user
+                user = User(email=email, password_hash='OTP_AUTH', role='Student')
+                db.session.add(user)
+            
+            user.otp = otp
+            user.otp_expiry = otp_expiry
+            db.session.commit()
+
+            # PRINT OTP TO TERMINAL as requested
+            print(f"\n[LOGIN] OTP for {email}: {otp}\n")
+
+            if is_api:
+                return jsonify({'message': 'OTP sent to email (check terminal for demo)', 'email': email}), 200
+            else:
+                # Store email in session for the next step
+                session['pending_email'] = email
+                return render_template('login.html', message='OTP sent! Check your terminal.')
+
+        except Exception as e:
+            print(f"Login error: {e}")
+            if request.is_json: return jsonify({'error': 'Internal server error'}), 500
+            return render_template('login.html', error='Internal server error')
+
+    @app.route('/verify', methods=['POST'])
+    def verify_otp():
+        """
+        Verify OTP and return redirect URL based on role.
+        """
+        try:
+            # Handle both JSON and Form data
+            if request.is_json:
+                data = request.get_json()
+                email = data.get('email')
+                otp = data.get('otp')
+                is_api = True
+            else:
+                email = request.form.get('email')
+                otp = request.form.get('otp')
+                is_api = False
+
+            if not email or not otp:
+                error_msg = 'Email and OTP are required'
+                if is_api: return jsonify({'error': error_msg}), 400
+                return render_template('login.html', error=error_msg)
+
+            user = User.query.filter_by(email=email).first()
+
+            if not user:
+                 error_msg = 'User not found'
+                 if is_api: return jsonify({'error': error_msg}), 404
+                 return render_template('login.html', error=error_msg)
+
+            if user.otp != otp:
+                error_msg = 'Invalid OTP'
+                if is_api: return jsonify({'error': error_msg}), 401
+                return render_template('login.html', error=error_msg)
+            
+            if user.otp_expiry and datetime.utcnow() > user.otp_expiry:
+                error_msg = 'OTP has expired'
+                if is_api: return jsonify({'error': error_msg}), 401
+                return render_template('login.html', error=error_msg)
+
+            # OTP Valid - clear it
+            user.otp = None
+            user.otp_expiry = None
+            db.session.commit()
+
+            # Determine redirect URL
+            redirect_url = '/student/profile' # Default
+            if user.role == 'Admin':
+                redirect_url = '/admin'
+            elif user.role == 'Teacher':
+                redirect_url = '/dashboard'
+            elif user.role == 'Student':
+                redirect_url = '/student/profile'
+                # Pass student ID if linked
+                if user.student:
+                     redirect_url = f'/student/profile?student_id={user.student.id}'
+            
+            # Clear pending email from session on success
+            session.pop('pending_email', None)
+            # You might want to set a logged_in session variable here
+            session['user_id'] = user.id
+            session['role'] = user.role
+
+            if is_api:
+                return jsonify({
+                    'message': 'Login successful',
+                    'redirect_url': redirect_url,
+                    'role': user.role
+                }), 200
+            else:
+                return redirect(redirect_url)
+
+        except Exception as e:
+            print(f"Verify error: {e}")
+            if request.is_json: return jsonify({'error': 'Internal server error'}), 500
+            return render_template('login.html', error='Internal server error')
     
     @app.route('/api/classrooms', methods=['GET'])
     def get_classrooms():
@@ -110,51 +292,6 @@ def register_routes(app):
                 return jsonify(data), 200
         except Exception as e:
             return jsonify({'error': str(e)}), 500
-    
-    @app.route('/admin/generate_qr/<classroom_id>', methods=['GET'])
-    def generate_qr(classroom_id):
-        """
-        Generate a QR code for a classroom.
-        The QR code contains the classroom_id as a string.
-        Students can scan this QR code to get the class_id URL parameter.
-        """
-        try:
-            # Verify classroom exists
-            if classroom_id not in attendance_manager.classrooms:
-                return jsonify({'error': 'Classroom not found'}), 404
-            
-            # Create QR code instance
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            
-            # The QR code data is the classroom_id string
-            # When scanned, it will contain just the classroom_id (e.g., "BIO202")
-            # The student page can then use this to construct the URL: /?class_id=BIO202
-            qr.add_data(classroom_id)
-            qr.make(fit=True)
-            
-            # Create image from QR code
-            img = qr.make_image(fill_color="black", back_color="white")
-            
-            # Save to bytes buffer
-            img_buffer = io.BytesIO()
-            img.save(img_buffer, format='PNG')
-            img_buffer.seek(0)
-            
-            # Return image as response
-            return send_file(
-                img_buffer,
-                mimetype='image/png',
-                as_attachment=False,
-                download_name=f'qr_{classroom_id}.png'
-            )
-            
-        except Exception as e:
-            return jsonify({'error': f'Error generating QR code: {str(e)}'}), 500
     
     @app.route('/admin/generate_student_qr/<student_id>', methods=['GET'])
     def generate_student_qr(student_id):
@@ -656,24 +793,37 @@ def register_routes(app):
                 'error': str(e)
             }), 500
     
-    @app.route('/api/student/<student_id>', methods=['POST'])
-    def register_student(student_id):
-        """Register a new student."""
-        try:
-            data = request.get_json() or {}
-            name = data.get('name', f'Student {student_id}')
-            
-            attendance_manager.add_student(student_id, name, **data)
-            
-            return jsonify({
-                'status': 'success',
-                'message': 'Student registered',
-                'student_id': student_id
-            }), 201
-        except Exception as e:
-            return jsonify({
-                'error': str(e)
-            }), 500
+    @app.route('/api/student/<student_id>', methods=['GET', 'POST'])
+    def student_api(student_id):
+        """Get or register a student."""
+        if request.method == 'GET':
+            """Get student information."""
+            try:
+                students = attendance_manager.students
+                if student_id not in students:
+                    return jsonify({'error': 'Student not found'}), 404
+                
+                student_data = students[student_id]
+                return jsonify(student_data), 200
+            except Exception as e:
+                return jsonify({'error': str(e)}), 500
+        else:  # POST
+            """Register a new student."""
+            try:
+                data = request.get_json() or {}
+                name = data.get('name', f'Student {student_id}')
+                
+                attendance_manager.add_student(student_id, name, **data)
+                
+                return jsonify({
+                    'status': 'success',
+                    'message': 'Student registered',
+                    'student_id': student_id
+                }), 201
+            except Exception as e:
+                return jsonify({
+                    'error': str(e)
+                }), 500
     
     @app.route('/api/classroom/<classroom_id>', methods=['POST'])
     def register_classroom(classroom_id):

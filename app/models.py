@@ -3,11 +3,44 @@ Database models for the attendance system using Flask-SQLAlchemy.
 """
 from datetime import datetime, date
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import ForeignKey, Table, Column, Integer, String, DateTime, Date, Time
-from sqlalchemy.orm import relationship
+from sqlalchemy import ForeignKey, Table, Column, Integer, String, DateTime, Date, Time, CheckConstraint
+from sqlalchemy.orm import relationship, validates
 
-# This will be initialized in app/__init__.py
 db = SQLAlchemy()
+
+
+class User(db.Model):
+    """Application user model supporting multiple roles."""
+    __tablename__ = 'users'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    email = Column(String(200), unique=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    role = Column(String(20), nullable=False, default='Student')
+    created_at = Column(DateTime, default=datetime.utcnow)
+    otp = Column(String(6), nullable=True)
+    otp_expiry = Column(DateTime, nullable=True)
+
+    # Relationships
+    student = relationship('Student', back_populates='user', uselist=False)
+
+    __table_args__ = (
+        CheckConstraint(
+            "role in ('Admin','Teacher','Student')",
+            name='ck_users_role_valid'
+        ),
+    )
+
+    @validates('email')
+    def validate_email(self, key, address: str) -> str:
+        """Ensure email belongs to the allowed college domain."""
+        allowed_domain = '@smit.smu.edu.in'
+        if not address or not address.lower().endswith(allowed_domain):
+            raise ValueError(f'Email must end with {allowed_domain}')
+        return address.lower()
+
+    def __repr__(self):
+        return f'<User {self.id}: {self.email} ({self.role})>'
 
 
 # Association table for many-to-many relationship between Students and Classrooms
@@ -28,18 +61,26 @@ class Student(db.Model):
     name = Column(String(200), nullable=False)
     email = Column(String(200), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    date_joined = Column(Date, nullable=True, default=date.today)
+    user_id = Column(Integer, ForeignKey('users.id'), unique=True, nullable=True)
     
     # Relationships
     enrollments = relationship('Classroom', secondary=enrollment_table, back_populates='students')
     attendance_records = relationship('AttendanceRecord', back_populates='student', cascade='all, delete-orphan')
+    user = relationship('User', back_populates='student')
     
     def to_dict(self):
         """Convert student to dictionary."""
+        # Prefer linked user email if local email is not set
+        email = self.email
+        if not email and self.user:
+            email = self.user.email
         return {
             'id': self.id,
             'name': self.name,
-            'email': self.email,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'email': email,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'date_joined': self.date_joined.isoformat() if self.date_joined else None
         }
     
     def __repr__(self):

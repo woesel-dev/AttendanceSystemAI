@@ -1,13 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Attendance Scanner</title>
-    
+
     <!-- Include html5-qrcode library from CDN -->
     <script src="https://unpkg.com/html5-qrcode"></script>
-    
+
     <style>
         /* Reset and base styles */
         * {
@@ -79,10 +80,13 @@
         }
 
         @keyframes scanPulse {
-            0%, 100% {
+
+            0%,
+            100% {
                 border-color: #667eea;
                 box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7);
             }
+
             50% {
                 border-color: #764ba2;
                 box-shadow: 0 0 0 10px rgba(118, 75, 162, 0);
@@ -105,6 +109,7 @@
                 opacity: 0;
                 transform: translateY(-10px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -151,49 +156,40 @@
             color: #333;
         }
 
-        /* Classroom selector */
-        .classroom-selector {
-            margin-bottom: 20px;
-            text-align: left;
+        /* Navigation buttons */
+        .nav-buttons {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
         }
 
-        .classroom-selector label {
-            display: block;
-            margin-bottom: 8px;
-            color: #333;
-            font-weight: 600;
-            font-size: 0.95em;
-        }
-
-        .classroom-selector select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #ddd;
+        .btn {
+            padding: 10px 20px;
+            border: none;
             border-radius: 8px;
-            font-size: 1em;
-            background: white;
-            color: #333;
-            cursor: pointer;
-            transition: border-color 0.3s;
-        }
-
-        .classroom-selector select:hover {
-            border-color: #667eea;
-        }
-
-        .classroom-selector select:focus {
-            outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-
-        .classroom-info {
-            margin-top: 10px;
-            padding: 10px;
-            background: #e7f3ff;
-            border-radius: 6px;
             font-size: 0.9em;
-            color: #0066cc;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        /* Camera permission message */
+        .camera-permission {
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
         }
 
         /* Mobile responsive */
@@ -209,16 +205,18 @@
             #reader {
                 min-height: 250px;
             }
-        }
 
-        /* Camera permission message */
-        .camera-permission {
-            padding: 20px;
-            color: #666;
-            font-size: 0.9em;
+            .nav-buttons {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
         }
     </style>
 </head>
+
 <body>
     <!-- Main container card -->
     <div class="container">
@@ -251,6 +249,14 @@
             2. Scan your Student ID QR code<br>
             3. The system will automatically detect your active class<br>
             4. Wait for confirmation message
+        </div>
+
+        <!-- Navigation buttons -->
+        <!-- Navigation buttons -->
+        <div class="nav-buttons">
+            <a href="/dashboard" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 8px;">
+                <span>←</span> Back to Dashboard
+            </a>
         </div>
     </div>
 
@@ -338,9 +344,9 @@
          */
         async function sendAttendanceRequest(student_id) {
             // Log what we're sending
-            console.log("[STUDENT_PAGE] Sending attendance request:");
-            console.log("[STUDENT_PAGE]   student_id:", student_id);
-            console.log("[STUDENT_PAGE]   student_id type:", typeof student_id, "length:", student_id.length);
+            console.log("[SCANNER_PAGE] Sending attendance request:");
+            console.log("[SCANNER_PAGE]   student_id:", student_id);
+            console.log("[SCANNER_PAGE]   student_id type:", typeof student_id, "length:", student_id.length);
 
             try {
                 // Prepare request data - only student_id needed, classroom is auto-detected
@@ -370,7 +376,7 @@
                 } else {
                     // Show error message (red) with details if available
                     const errorMsg = result.message || "Entry Denied";
-                    console.error("[STUDENT_PAGE] Entry denied:", errorMsg);
+                    console.error("[SCANNER_PAGE] Entry denied:", errorMsg);
                     showError(`❌ Entry Denied: ${errorMsg}`);
                 }
 
@@ -387,7 +393,7 @@
                 console.error("Error sending request:", error);
                 loadingIndicator.style.display = "none";
                 showError("❌ Network Error. Please try again.");
-                
+
                 // Resume scanning after error
                 setTimeout(() => {
                     if (html5QrcodeScanner) {
@@ -424,7 +430,7 @@
         }
 
         // Initialize scanner when page loads
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             // Check if browser supports camera
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 initScanner();
@@ -434,7 +440,7 @@
         });
 
         // Clean up when page is closed
-        window.addEventListener('beforeunload', function() {
+        window.addEventListener('beforeunload', function () {
             if (html5QrcodeScanner) {
                 html5QrcodeScanner.stop().catch(err => {
                     console.error("Error stopping scanner:", err);
@@ -443,4 +449,5 @@
         });
     </script>
 </body>
+
 </html>

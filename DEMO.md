@@ -1,4 +1,4 @@
-# 🏆 Judge's Navigation & Demo Guide
+# Navigation & Demo Guide
 
 Follow these steps to experience the full **Smart Attendance AI** ecosystem.
 

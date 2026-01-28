@@ -45,13 +45,7 @@ The system uses a domain-restricted, Two-Factor Authentication (2FA) flow.
     pip install -r requirements.txt
     ```
 
-3.  **Seed the Database**
-    Populate the database with initial roles and users:
-    ```bash
-    python seed_db.py
-    ```
-
-4.  **Run Locally**
+3.  **Run Locally**
     Start the development server:
     ```bash
     python app.py

@@ -11,13 +11,30 @@ import io
 import qrcode
 from app.attendance_manager import attendance_manager
 from app.headcount_detector import headcount_detector
-from app.models import db, User, Student
+from app.models import db, User, Student, AttendanceRecord
 import random
 from datetime import timedelta
 
 
 def register_routes(app):
     """Register all routes with the Flask app."""
+    
+    @app.before_request
+    def require_login():
+        """
+        Global login requirement.
+        Redirects to login page if user is not logged in.
+        Excludes login page, static files, and verification/logout routes.
+        """
+        allowed_endpoints = ['login', 'verify_otp', 'static', 'login_reset', 'logout', 'exclude_from_auth']
+        
+        # Check if the endpoint is allowed or if user is logged in
+        if request.endpoint and request.endpoint not in allowed_endpoints and 'user_id' not in session:
+            # For API requests, return 401 instead of redirecting
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Authentication required'}), 401
+            
+            return redirect(url_for('login'))
     
     @app.route('/')
     def home_page():
@@ -50,6 +67,11 @@ def register_routes(app):
     @app.route('/student/scanner')
     def student_scanner():
         """Serve the QR scanner page."""
+        # Scanner Protection: Teacher only
+        if session.get('role') != 'Teacher':
+            # Redirect to student profile if logged in but wrong role
+            return redirect(url_for('student_profile'))
+            
         return render_template('scanner.html')
 
     @app.route('/login/reset')
@@ -227,6 +249,13 @@ def register_routes(app):
     @app.route('/admin')
     def admin_page():
         """Serve the admin page."""
+        # Admin Protection: Admin only
+        if session.get('role') != 'Admin':
+            # Redirect based on role
+            if session.get('role') == 'Teacher':
+                return redirect(url_for('dashboard'))
+            return redirect(url_for('student_profile'))
+            
         return render_template('admin.html')
     
     @app.route('/api/admin/add', methods=['POST'])
@@ -359,6 +388,10 @@ def register_routes(app):
     @app.route('/dashboard')
     def dashboard():
         """Serve the teacher dashboard page."""
+        # Dashboard Protection: Teacher only
+        if session.get('role') != 'Teacher':
+            return redirect(url_for('student_profile'))
+            
         return render_template('dashboard.html')
     
     @app.route('/api/dashboard/current-class', methods=['GET'])
@@ -776,6 +809,110 @@ def register_routes(app):
                 'message': f'Server error: {str(e)}'
             }), 500
     
+
+    @app.route('/manual_checkin/<student_id>', methods=['POST'])
+    def manual_checkin(student_id):
+        """
+        Manually check in a student for the currently active class.
+        Backup method for when QR scanning fails.
+        """
+        try:
+            # Check if user is authorized (Teacher/Admin)
+            if 'role' not in session or session['role'] not in ['Teacher', 'Admin']:
+                return jsonify({'error': 'Unauthorized'}), 403
+
+            # Automatically detect active classroom
+            active_classroom_id = attendance_manager.get_active_classroom()
+            
+            if not active_classroom_id:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'No active class found at this time'
+                }), 404
+            
+            # Check if student exists
+            if student_id not in attendance_manager.students:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Student not found'
+                }), 404
+                
+            # Check enrollment
+            is_enrolled = attendance_manager.is_student_enrolled(student_id, active_classroom_id)
+            if not is_enrolled:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Student is not enrolled in the active classroom'
+                }), 403
+            
+            # Mark attendance
+            success = attendance_manager.mark_attendance(student_id, active_classroom_id)
+            
+            if not success:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Attendance already marked for today'
+                }), 409
+            
+            # Get classroom info for response
+            classroom_info = attendance_manager.classrooms.get(active_classroom_id, {})
+            classroom_name = classroom_info.get('name', active_classroom_id)
+            
+            return jsonify({
+                'status': 'success',
+                'message': f'Manual check-in successful for {classroom_name}',
+                'classroom_id': active_classroom_id,
+                'student_id': student_id
+            }), 200
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/dashboard/enrolled-students', methods=['GET'])
+    def get_enrolled_students():
+        """Get list of enrolled students for the active class with attendance status."""
+        try:
+            # Get active classroom
+            active_classroom_id = attendance_manager.get_active_classroom()
+            
+            if not active_classroom_id:
+                return jsonify({
+                    'classroom_id': None,
+                    'students': []
+                }), 200
+            
+            # Get enrolled students
+            enrollment_ids = attendance_manager.enrollments.get(active_classroom_id, [])
+            students_data = []
+            
+            # Get today's attendance to mark status
+            today = datetime.now().date()
+            attendance_records = AttendanceRecord.query.filter_by(
+                classroom_id=active_classroom_id
+            ).filter(
+                db.func.date(AttendanceRecord.timestamp) == today
+            ).all()
+            
+            attended_student_ids = {record.student_id for record in attendance_records}
+            
+            for student_id in enrollment_ids:
+                student = attendance_manager.students.get(student_id, {})
+                students_data.append({
+                    'id': student_id,
+                    'name': student.get('name', student_id),
+                    'has_attended': student_id in attended_student_ids
+                })
+            
+            # Sort by name
+            students_data.sort(key=lambda x: x['name'])
+            
+            return jsonify({
+                'classroom_id': active_classroom_id,
+                'students': students_data
+            }), 200
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
     @app.route('/api/attendance/<classroom_id>', methods=['GET'])
     def get_attendance(classroom_id):
         """Get attendance count and list for a classroom."""

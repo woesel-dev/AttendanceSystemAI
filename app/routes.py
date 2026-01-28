@@ -5,6 +5,7 @@ from flask import request, jsonify, render_template, send_file, session, redirec
 from datetime import datetime
 import cv2
 import numpy as np
+import pytz
 
 import os
 import io
@@ -398,7 +399,7 @@ def register_routes(app):
     def get_current_class():
         """Get the currently active class based on time window."""
         try:
-            current_time = datetime.now()
+            current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
             all_admin_data = attendance_manager.get_all_admin_data()
             
             # Find active class (within time window)
@@ -886,7 +887,7 @@ def register_routes(app):
             students_data = []
             
             # Get today's attendance to mark status
-            today = datetime.now().date()
+            today = datetime.now(pytz.timezone('Asia/Kolkata')).date()
             attendance_records = AttendanceRecord.query.filter_by(
                 classroom_id=active_classroom_id
             ).filter(

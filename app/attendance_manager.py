@@ -5,6 +5,7 @@ Handles student enrollment, time windows, and attendance tracking using SQLite.
 from datetime import datetime, time, date
 from typing import Dict, List, Optional
 from flask import current_app
+import pytz
 from app.models import db, Student, Classroom, AttendanceRecord, enrollment_table
 
 
@@ -127,7 +128,7 @@ class AttendanceManager:
                 return False
             
             if current_time is None:
-                current_time = datetime.now()
+                current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
             
             current_time_only = current_time.time()
             start_time = classroom.time_window_start
@@ -152,7 +153,7 @@ class AttendanceManager:
         """
         with current_app.app_context():
             if current_time is None:
-                current_time = datetime.now()
+                current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
             
             print(f"[GET_ACTIVE_CLASSROOM] Looking for active classroom at {current_time.strftime('%H:%M:%S')}")
             
@@ -182,7 +183,7 @@ class AttendanceManager:
             print(f"[MARK_ATTENDANCE] Called with student_id='{student_id}', classroom_id='{classroom_id}'")
             
             if timestamp is None:
-                timestamp = datetime.now()
+                timestamp = datetime.now(pytz.timezone('Asia/Kolkata'))
             
             print(f"[MARK_ATTENDANCE] Checking for existing attendance records...")
             # Check if already marked today (prevent duplicates)
@@ -220,7 +221,7 @@ class AttendanceManager:
         """Get the count of students who marked attendance for a classroom on a given date."""
         with current_app.app_context():
             if date is None:
-                date = datetime.now()
+                date = datetime.now(pytz.timezone('Asia/Kolkata'))
             
             target_date = date.date()
             
@@ -239,7 +240,7 @@ class AttendanceManager:
         """Get the list of attendance records for a classroom on a given date."""
         with current_app.app_context():
             if date is None:
-                date = datetime.now()
+                date = datetime.now(pytz.timezone('Asia/Kolkata'))
             
             target_date = date.date()
             

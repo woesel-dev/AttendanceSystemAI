@@ -114,9 +114,13 @@ def register_routes(app):
                 if is_api: return jsonify({'error': error_msg}), 400
                 return render_template('login.html', error=error_msg)
 
-            # Domain validation
-            if not email.lower().endswith('@smit.smu.edu.in'):
-                 error_msg = 'Access restricted to @smit.smu.edu.in domain'
+            # Domain validation strategy
+            import re
+            # Regex: At least one char for name, underscore, at least one digit for ID, then domain
+            email_pattern = r'^.+_\d+@smit\.smu\.edu\.in$'
+            
+            if not re.match(email_pattern, email.lower()):
+                 error_msg = 'Invalid email format. Use: name_studentID@smit.smu.edu.in'
                  if is_api: return jsonify({'error': error_msg}), 403
                  return render_template('login.html', error=error_msg)
 
@@ -192,6 +196,42 @@ def register_routes(app):
             # OTP Valid - clear it
             user.otp = None
             user.otp_expiry = None
+            
+            # --- Auto-generate Student Profile if missing ---
+            if user.role == 'Student' and user.student is None:
+                try:
+                    # Logic: name_studentID@smit.smu.edu.in
+                    # 1. Get local part
+                    local_part = user.email.split('@')[0]
+                    
+                    # 2. Split by underscore
+                    parts = local_part.split('_')
+                    
+                    if len(parts) >= 2:
+                        # Last part is ID
+                        student_id = parts[-1]
+                        
+                        # Rest is name
+                        name_part = "_".join(parts[:-1])
+                        # Replace internal underscores with spaces and Title Case
+                        name = name_part.replace('_', ' ').title()
+                        
+                        print(f"[VERIFY] Auto-creating student: ID={student_id}, Name={name}")
+                        
+                        # 3. Create/Get Student
+                        # Using attendance_manager to handle student creation safely
+                        attendance_manager.add_student(student_id, name, email=user.email)
+                        
+                        # 4. Link to User
+                        student_obj = Student.query.get(student_id)
+                        if student_obj:
+                            user.student = student_obj
+                            print(f"[VERIFY] Linked user {user.email} to student {student_id}")
+
+                except Exception as e:
+                    print(f"[VERIFY] Error auto-generating profile: {e}")
+                    # Continue login even if profile gen fails, though ideally it shouldn't
+
             db.session.commit()
 
             # Determine redirect URL
@@ -211,7 +251,7 @@ def register_routes(app):
             # You might want to set a logged_in session variable here
             session['user_id'] = user.id
             session['role'] = user.role
-
+            
             if is_api:
                 return jsonify({
                     'message': 'Login successful',

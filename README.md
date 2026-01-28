@@ -2,6 +2,7 @@
 
 Smart Attendance AI modernizes classroom management by replacing paper sheets with secure QR code scanning and AI-powered verification. This role-based system empowers students with digital IDs while providing teachers with real-time dashboards and computer vision tools to validate attendance headcounts efficiently.
 
+
 ## Key Features
 
 -   **Secure RBAC**: Domain-restricted login (example: `@smit.smu.edu.in`) ensures only authorized users can access the system, backed by secure OTP verification.
@@ -56,6 +57,9 @@ The system uses a domain-restricted, Two-Factor Authentication (2FA) flow.
     python app.py
     ```
     The app will be accessible at `http://0.0.0.0:8000`.
+
+## 🚀 Live Demo
+Ready to test the app? Check out our **[Navigation Guide](DEMO.md)** for a step-by-step walkthrough of the Admin, Teacher, and Student flows.
 
 ## Deployment
 

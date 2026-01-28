@@ -23,6 +23,19 @@ def create_app():
     # Create tables
     with app.app_context():
         db.create_all()
+        
+        # Auto-Seed Logic
+        from app.models import User
+        try:
+            if User.query.first() is None:
+                print("Database empty, seeding automatically...")
+                # Import here to avoid circular dependency
+                from seed_db import seed_database
+                # Pass the current app instance to avoid creating valid context inside
+                seed_database(app)
+                print("Database seeded automatically!")
+        except Exception as e:
+            print(f"Error during auto-seeding: {e}")
     
     # Register routes
     register_routes(app)

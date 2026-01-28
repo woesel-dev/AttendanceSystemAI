@@ -1,12 +1,16 @@
-from app import create_app, db
-from app.models import User, Student
-from datetime import date
-
-app = create_app()
-
-def seed_database():
+def seed_database(app=None):
     """Populate database with initial data."""
+    # Use provided app or create new one if running as script
+    created_app = False
+    if app is None:
+        from app import create_app
+        app = create_app()
+        created_app = True
+
     with app.app_context():
+        from app.models import db, User, Student
+        from datetime import date
+
         # Ensure tables exist
         db.create_all()
         print("Database tables ensured.")

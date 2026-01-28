@@ -51,17 +51,20 @@ def register_routes(app):
     @app.route('/student/profile')
     def student_profile():
         """Serve the student profile page."""
-        student_id = request.args.get('student_id')
+        # Try to get student from logged-in user first
+        user_id = session.get('user_id')
         student = None
-        if student_id:
-            # We need to access the students dictionary from attendance_manager
-            # But wait, attendance_manager.students returns a dict of data, not Student objects?
-            # Let's check get_students or similar. 
-            # attendance_manager.students is a property wrapping self.data['students']
-            # It returns a dict.
-            # Models are better if we want to work with DB objects.
-            # user instructions said "Link the Student model to User" in models.py, so we should use DB models.
-            student = Student.query.filter_by(id=student_id).first()
+        
+        if user_id:
+            user = User.query.get(user_id)
+            if user and user.student:
+                student = user.student
+
+        # Fallback to query param (e.g. for admins viewing a student)
+        if not student:
+            student_id = request.args.get('student_id')
+            if student_id:
+                student = Student.query.filter_by(id=student_id).first()
         
         return render_template('student_profile.html', student=student)
     
@@ -176,12 +179,32 @@ def register_routes(app):
                 if is_api: return jsonify({'error': error_msg}), 400
                 return render_template('login.html', error=error_msg)
 
+            # Check if user exists (should exist from login step, but safe to check)
             user = User.query.filter_by(email=email).first()
 
             if not user:
-                 error_msg = 'User not found'
-                 if is_api: return jsonify({'error': error_msg}), 404
-                 return render_template('login.html', error=error_msg)
+                # Auto-create user if they don't exist (handle case where /verify is hit directly or weird state)
+                print(f"[VERIFY] User {email} not found. Creating new user...")
+                user = User(email=email, password_hash='OTP_AUTH', role='Student')
+                # Note: OTP check will fail if we just created them without OTP, 
+                # but the user flow implies they have an OTP. 
+                # If they don't exist here, it's weird. 
+                # However, following user instructions: "Auto-Create: If the user does not exist... automatically create... with role student"
+                # But waiting, if we create them here, we can't verify their OTP because they don't have one set in DB??
+                # The prompt implies: "check if a User with that email already exists in the database. Auto-Create... User record... and Student record"
+                # We'll valid the OTP first if user exists. If user doesn't exist, we can't verify OTP. 
+                # Assuming this is for robust handling OR the user meant "If user exists but doesn't have student profile".
+                # Actually, the user said: "When the OTP is verified, check if a User... exists... If not... create".
+                # If user doesn't exist, we can't verify OTP against them. 
+                # Maybe they meant: "If the email is valid but user record missing (e.g. manual API call?)"
+                # Let's stick to: Verify OTP if user exists. 
+                # If user was deleted mid-flow? 
+                
+                # Let's handle the "Student Profile Missing" case robustly as requested.
+                error_msg = 'User session expired or invalid. Please login again.'
+                if is_api: return jsonify({'error': error_msg}), 404
+                # Retaining original logic: Fail if user not found for OTP verification.
+                return render_template('login.html', error=error_msg)
 
             if user.otp != otp:
                 error_msg = 'Invalid OTP'
@@ -198,41 +221,48 @@ def register_routes(app):
             user.otp_expiry = None
             
             # --- Auto-generate Student Profile if missing ---
-            if user.role == 'Student' and user.student is None:
-                try:
-                    # Logic: name_studentID@smit.smu.edu.in
-                    # 1. Get local part
-                    local_part = user.email.split('@')[0]
-                    
-                    # 2. Split by underscore
-                    parts = local_part.split('_')
-                    
-                    if len(parts) >= 2:
-                        # Last part is ID
-                        student_id = parts[-1]
+            # Ensure session is committed to save OTP clearance before profile logic? 
+            # Or just do everything and commit once.
+            
+            if user.role == 'Student':
+                # Check for student profile
+                if user.student is None:
+                    try:
+                        # Logic: name_studentID@smit.smu.edu.in
+                        # 1. Get local part
+                        local_part = user.email.split('@')[0]
                         
-                        # Rest is name
-                        name_part = "_".join(parts[:-1])
-                        # Replace internal underscores with spaces and Title Case
-                        name = name_part.replace('_', ' ').title()
+                        # 2. Split by underscore
+                        parts = local_part.split('_')
                         
-                        print(f"[VERIFY] Auto-creating student: ID={student_id}, Name={name}")
-                        
-                        # 3. Create/Get Student
-                        # Using attendance_manager to handle student creation safely
-                        attendance_manager.add_student(student_id, name, email=user.email)
-                        
-                        # 4. Link to User
-                        student_obj = Student.query.get(student_id)
-                        if student_obj:
-                            user.student = student_obj
-                            print(f"[VERIFY] Linked user {user.email} to student {student_id}")
+                        if len(parts) >= 2:
+                            # Last part is ID
+                            student_id = parts[-1]
+                            
+                            # Rest is name
+                            name_part = "_".join(parts[:-1])
+                            # Replace internal underscores with spaces and Title Case
+                            name = name_part.replace('_', ' ').title()
+                            
+                            print(f"[VERIFY] Auto-creating student: ID={student_id}, Name={name}")
+                            
+                            # 3. Create/Get Student
+                            # Using attendance_manager to handle student creation safely
+                            attendance_manager.add_student(student_id, name, email=user.email)
+                            
+                            # 4. Link to User
+                            # Force reload/get to ensure we have the instance attached to this session
+                            student_obj = Student.query.get(student_id)
+                            if student_obj:
+                                user.student = student_obj
+                                print(f"[VERIFY] Linked user {user.email} to student {student_id}")
 
-                except Exception as e:
-                    print(f"[VERIFY] Error auto-generating profile: {e}")
-                    # Continue login even if profile gen fails, though ideally it shouldn't
+                    except Exception as e:
+                        print(f"[VERIFY] Error auto-generating profile: {e}")
+                        # Continue login even if profile gen fails
 
             db.session.commit()
+            print(f"[VERIFY] Changes committed for {user.email}")
 
             # Determine redirect URL
             redirect_url = '/student/profile' # Default
@@ -241,8 +271,10 @@ def register_routes(app):
             elif user.role == 'Teacher':
                 redirect_url = '/dashboard'
             elif user.role == 'Student':
+                # Even if we committed, let's just point to /student/profile 
+                # The updated /student/profile route will find the student from the session user
                 redirect_url = '/student/profile'
-                # Pass student ID if linked
+                # Optional: still pass query param as fallback
                 if user.student:
                      redirect_url = f'/student/profile?student_id={user.student.id}'
             

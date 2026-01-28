@@ -185,26 +185,16 @@ def register_routes(app):
             if not user:
                 # Auto-create user if they don't exist (handle case where /verify is hit directly or weird state)
                 print(f"[VERIFY] User {email} not found. Creating new user...")
-                user = User(email=email, password_hash='OTP_AUTH', role='Student')
-                # Note: OTP check will fail if we just created them without OTP, 
-                # but the user flow implies they have an OTP. 
-                # If they don't exist here, it's weird. 
-                # However, following user instructions: "Auto-Create: If the user does not exist... automatically create... with role student"
-                # But waiting, if we create them here, we can't verify their OTP because they don't have one set in DB??
-                # The prompt implies: "check if a User with that email already exists in the database. Auto-Create... User record... and Student record"
-                # We'll valid the OTP first if user exists. If user doesn't exist, we can't verify OTP. 
-                # Assuming this is for robust handling OR the user meant "If user exists but doesn't have student profile".
-                # Actually, the user said: "When the OTP is verified, check if a User... exists... If not... create".
-                # If user doesn't exist, we can't verify OTP against them. 
-                # Maybe they meant: "If the email is valid but user record missing (e.g. manual API call?)"
-                # Let's stick to: Verify OTP if user exists. 
-                # If user was deleted mid-flow? 
-                
-                # Let's handle the "Student Profile Missing" case robustly as requested.
-                error_msg = 'User session expired or invalid. Please login again.'
-                if is_api: return jsonify({'error': error_msg}), 404
-                # Retaining original logic: Fail if user not found for OTP verification.
-                return render_template('login.html', error=error_msg)
+                try:
+                    user = User(email=email, password_hash='OTP_AUTH', role='Student')
+                    db.session.add(user)
+                    db.session.commit()
+                    # Refresh user instance
+                    user = User.query.filter_by(email=email).first()
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[VERIFY] Error creating user: {e}")
+                    return jsonify({'error': 'Failed to create user'}), 500
 
             if user.otp != otp:
                 error_msg = 'Invalid OTP'
@@ -217,52 +207,79 @@ def register_routes(app):
                 return render_template('login.html', error=error_msg)
 
             # OTP Valid - clear it
-            user.otp = None
-            user.otp_expiry = None
+            try:
+                user.otp = None
+                user.otp_expiry = None
+                db.session.commit()
+            except Exception as e:
+                db.session.rollback()
+                print(f"[VERIFY] Error clearing OTP: {e}")
+                return jsonify({'error': 'Database error'}), 500
             
             # --- Auto-generate Student Profile if missing ---
-            # Ensure session is committed to save OTP clearance before profile logic? 
-            # Or just do everything and commit once.
+            if user.role == 'Student' and user.student is None:
+                try:
+                    # Logic: name_studentID@smit.smu.edu.in
+                    # 1. Get local part
+                    local_part = user.email.split('@')[0]
+                    
+                    # 2. Split by underscore
+                    parts = local_part.split('_')
+                    
+                    if len(parts) >= 2:
+                        # Last part is ID
+                        student_id = parts[-1]
+                        
+                        # Rest is name
+                        name_part = "_".join(parts[:-1])
+                        # Replace internal underscores with spaces and Title Case
+                        name = name_part.replace('_', ' ').title()
+                        
+                        print(f"[VERIFY] Auto-creating student: ID={student_id}, Name={name}")
+                        
+                        # 3. Create Student Object directly
+                        # We use direct model creation for better control over the transaction here
+                        new_student = Student(id=student_id, name=name, email=user.email)
+                        
+                        # 4. Explicitly Link to User
+                        new_student.user_id = user.id
+                        
+                        db.session.add(new_student)
+                        db.session.commit()
+                        print(f"[VERIFY] Linked user {user.email} (ID: {user.id}) to student {student_id}")
+
+                except Exception as e:
+                    db.session.rollback()
+                    print(f"[VERIFY] Error auto-generating profile: {e}")
+                    # Release lock if any
+                    db.session.remove()
+                    # Continue login even if profile gen fails
+
+            # Determine redirect URL
+            redirect_url = '/student/profile' # Default
+            if user.role == 'Admin':
+                redirect_url = '/admin'
+            elif user.role == 'Teacher':
+                redirect_url = '/dashboard'
+            elif user.role == 'Student':
+                # Force reload student relationship
+                db.session.refresh(user)
+                if user.student:
+                     redirect_url = f'/student/profile?student_id={user.student.id}'
             
-            if user.role == 'Student':
-                # Check for student profile
-                if user.student is None:
-                    try:
-                        # Logic: name_studentID@smit.smu.edu.in
-                        # 1. Get local part
-                        local_part = user.email.split('@')[0]
-                        
-                        # 2. Split by underscore
-                        parts = local_part.split('_')
-                        
-                        if len(parts) >= 2:
-                            # Last part is ID
-                            student_id = parts[-1]
-                            
-                            # Rest is name
-                            name_part = "_".join(parts[:-1])
-                            # Replace internal underscores with spaces and Title Case
-                            name = name_part.replace('_', ' ').title()
-                            
-                            print(f"[VERIFY] Auto-creating student: ID={student_id}, Name={name}")
-                            
-                            # 3. Create/Get Student
-                            # Using attendance_manager to handle student creation safely
-                            attendance_manager.add_student(student_id, name, email=user.email)
-                            
-                            # 4. Link to User
-                            # Force reload/get to ensure we have the instance attached to this session
-                            student_obj = Student.query.get(student_id)
-                            if student_obj:
-                                user.student = student_obj
-                                print(f"[VERIFY] Linked user {user.email} to student {student_id}")
-
-                    except Exception as e:
-                        print(f"[VERIFY] Error auto-generating profile: {e}")
-                        # Continue login even if profile gen fails
-
-            db.session.commit()
-            print(f"[VERIFY] Changes committed for {user.email}")
+            # Clear pending email from session on success
+            session.pop('pending_email', None)
+            session['user_id'] = user.id
+            session['role'] = user.role
+            
+            if is_api:
+                return jsonify({
+                    'message': 'Login successful',
+                    'redirect_url': redirect_url,
+                    'role': user.role
+                }), 200
+            else:
+                return redirect(redirect_url)
 
             # Determine redirect URL
             redirect_url = '/student/profile' # Default

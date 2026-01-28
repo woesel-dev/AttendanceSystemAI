@@ -14,7 +14,7 @@ def create_app():
     
     # Database configuration
     import os
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///attendance.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///attendance.db?timeout=20')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     
     # Initialize database

@@ -28,9 +28,18 @@
         <div class="dashboard-content">
             <!-- Current Class Info Section -->
             <div class="card class-info-card">
-                <h2>Current Class Information</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="margin: 0;">Current Class Information</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <label for="classroomSelect" style="font-weight: bold;">Classroom:</label>
+                        <select id="classroomSelect" class="form-control"
+                            style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; min-width: 200px;">
+                            <option value="">Loading classrooms...</option>
+                        </select>
+                    </div>
+                </div>
                 <div id="classInfo" class="class-info">
-                    <div class="loading">Loading class information...</div>
+                    <div class="loading">Select a classroom to view details...</div>
                 </div>
             </div>
 

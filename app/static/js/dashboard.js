@@ -38,17 +38,80 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 
-// Load current class information
+// Load current class information and populate dropdown
 async function loadCurrentClass() {
     try {
-        const response = await fetch('/api/dashboard/current-class');
-        const data = await response.json();
+        // Step 1: Get all classrooms for the dropdown
+        const classroomsResponse = await fetch('/api/classrooms');
+        const classroomsData = await classroomsResponse.json();
 
+        const classroomSelect = document.getElementById('classroomSelect');
         const classInfoDiv = document.getElementById('classInfo');
 
-        if (response.ok && data.classroom_id) {
-            currentClassroomId = data.classroom_id;
+        // Populate dropdown if empty (first load)
+        if (classroomSelect.options.length <= 1) {
+            classroomSelect.innerHTML = '<option value="">-- Select Classroom --</option>';
+            if (classroomsData.classrooms && classroomsData.classrooms.length > 0) {
+                classroomsData.classrooms.forEach(cls => {
+                    const option = document.createElement('option');
+                    option.value = cls.id;
+                    option.textContent = `${cls.name} (${cls.subject})`;
+                    classroomSelect.appendChild(option);
+                });
 
+                // Add event listener for change
+                classroomSelect.addEventListener('change', function () {
+                    const selectedId = this.value;
+                    if (selectedId) {
+                        currentClassroomId = selectedId;
+                        loadSpecificClassData(selectedId);
+
+                        // Also trigger reloads for other components
+                        loadAttendanceStats();
+                        loadRecentScans();
+                        loadEnrolledStudents();
+                    } else {
+                        currentClassroomId = null;
+                        classInfoDiv.innerHTML = '<div class="loading">Select a classroom to view details...</div>';
+                    }
+                });
+            } else {
+                classroomSelect.innerHTML = '<option value="">No classrooms found</option>';
+            }
+        }
+
+        // Step 2: Check for active class if nothing selected yet
+        if (!currentClassroomId) {
+            const activeResponse = await fetch('/api/dashboard/current-class');
+            const activeData = await activeResponse.json();
+
+            if (activeResponse.ok && activeData.classroom_id) {
+                currentClassroomId = activeData.classroom_id;
+                classroomSelect.value = currentClassroomId;
+                loadSpecificClassData(currentClassroomId);
+            }
+        }
+
+        // If we have a selection (either manual or auto), refresh the info display
+        if (currentClassroomId) {
+            loadSpecificClassData(currentClassroomId);
+        }
+
+    } catch (error) {
+        console.error('Error loading current class:', error);
+        document.getElementById('classInfo').innerHTML =
+            '<div class="loading">Error loading class information</div>';
+    }
+}
+
+// Ensure loadSpecificClassData is defined to show details
+async function loadSpecificClassData(classroomId) {
+    try {
+        const response = await fetch(`/api/admin/data?classroom_id=${classroomId}`);
+        const data = await response.json();
+        const classInfoDiv = document.getElementById('classInfo');
+
+        if (response.ok && data) {
             classInfoDiv.innerHTML = `
                 <div class="class-info-item">
                     <span class="class-info-label">Subject:</span>
@@ -67,20 +130,9 @@ async function loadCurrentClass() {
                     <span class="class-info-value class-info-time">${data.start_time || 'N/A'} - ${data.end_time || 'N/A'}</span>
                 </div>
             `;
-        } else {
-            currentClassroomId = null;
-            classInfoDiv.innerHTML = `
-                <div class="no-class">
-                    <div class="no-class-icon">📚</div>
-                    <p>No active class at this time</p>
-                    <p style="font-size: 0.9em; margin-top: 10px;">Check back during class hours or add a class in the admin panel.</p>
-                </div>
-            `;
         }
     } catch (error) {
-        console.error('Error loading current class:', error);
-        document.getElementById('classInfo').innerHTML =
-            '<div class="loading">Error loading class information</div>';
+        console.error('Error loading specific class data', error);
     }
 }
 

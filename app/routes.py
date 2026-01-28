@@ -5,7 +5,7 @@ from flask import request, jsonify, render_template, send_file, session, redirec
 from datetime import datetime
 import cv2
 import numpy as np
-from werkzeug.utils import secure_filename
+
 import os
 import io
 import qrcode

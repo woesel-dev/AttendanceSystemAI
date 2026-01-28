@@ -9,6 +9,20 @@ Smart Attendance AI modernizes classroom management by replacing paper sheets wi
 -   **Teacher Dashboard**: A comprehensive command center for teachers to access live scanners, view enrolled students, and track real-time attendance stats.
 -   **AI Validation**: Integrated computer vision (OpenCV) automatically counts heads in classroom photos to verify scanning data and prevent proxy attendance.
 
+## 🔐 Authentication & Security
+
+The system uses a domain-restricted, Two-Factor Authentication (2FA) flow.
+
+- **Email Restriction**: Only users with `@smit.smu.edu.in` addresses can attempt login.
+- **Console-Based OTP**: For this hackathon demo, the 6-digit verification code is printed directly to the **Server Terminal/Logs** rather than sent via SMS or Email.
+
+### Why Console OTP?
+- **Cost-Efficiency**: Avoids the need for paid API credits (Twilio/SendGrid) during the prototyping phase.
+- **Speed**: Instant code delivery for rapid testing and judging.
+- **Privacy**: No actual student emails are sent across the public internet during development.
+
+> **To log in:** Enter your college email, check the terminal where the Flask app is running, and copy the code shown there.
+
 ## Tech Stack
 
 -   **Python** (Core Logic)
